@@ -7678,10 +7678,15 @@ void MainWindow::guiUpdate()
     tx2 += m_TRperiod;
   }
 
-  qint64 ms = QDateTime::currentMSecsSinceEpoch() % 86400000;
+  qint64 const actualMs = QDateTime::currentMSecsSinceEpoch();
+  qint64 const ms = actualMs % 86400000;
+  int const txAdvanceMs = m_txTiming.selectedAdvanceMs (m_config.txAdvanceMs(), m_tune);
+  qint64 const periodMs = qRound64 (1000.0 * m_TRperiod);
+  double const txPhase = 0.001 * TxTiming::phase (actualMs, periodMs, txAdvanceMs);
+  double const txTwoPeriodPhase = 0.001 * TxTiming::phase (actualMs, 2 * periodMs, txAdvanceMs);
+  double const txSixSecondPhase = 0.001 * TxTiming::phase (actualMs, 6000, txAdvanceMs);
   int nsec=ms/1000;
   double tsec=0.001*ms;
-  double t2p=fmod(tsec,2*m_TRperiod);
   m_s6=fmod(tsec,6.0);
   int nseq = fmod(double(nsec),m_TRperiod);
   m_tRemaining=m_TRperiod - fmod(tsec,m_TRperiod);
@@ -7689,36 +7694,37 @@ void MainWindow::guiUpdate()
   if(m_mode=="Echo") {
     tx1=0.0;
     tx2=txDuration;
-    if(m_auto and m_s6>4.0) m_bEchoTxOK=true;
+    if(m_auto and txSixSecondPhase>4.0) m_bEchoTxOK=true;
     if(m_transmitting) m_bEchoTxed=true;
   }
 
   if(m_mode=="WSPR" or m_mode=="FST4W") {
-    if(nseq==0 and m_ntr==0) {                   //Decide whether to Tx or Rx
-      m_tuneup=false;                              //This is not an ATU tuneup
-      bool btx = m_auto && m_WSPR_tx_next;         // To Tx, we need m_auto and
-                                                   // scheduled transmit
-      m_WSPR_tx_next = false;
-      if(btx) {
-        m_ntr=-1;                                  //This says we will have transmitted
+    // Decide TX using the advanced clock, but start RX on the actual boundary.
+    // The previous RX period may already have finished decoding before this.
+    if(m_ntr==0 && !ptt0Timer.isActive()) {
+      if(m_auto && m_WSPR_tx_next && txPhase < 1.0) {
+        m_tuneup=false;
+        m_WSPR_tx_next=false;
+        m_ntr=-1;
         ui->pbTxNext->setChecked (false);
-        m_bTxTime=true;                            //Start a WSPR or FST4W Tx sequence
-      } else {
-        // This will be a WSPR or FST4W Rx sequence.
-        m_ntr=1;                                   //This says we will have received
-        m_bTxTime=false;                           //Start a WSPR or FST4W Rx sequence
+        m_bTxTime=true;
+      } else if(nseq==0) {
+        m_tuneup=false;
+        m_WSPR_tx_next=false;
+        m_ntr=1;
+        m_bTxTime=false;
       }
     }
 
   } else {
     // For all modes other than WSPR and FST4W
-    m_bTxTime = (t2p >= tx1) and (t2p < tx2);
+    m_bTxTime = (txTwoPeriodPhase >= tx1) and (txTwoPeriodPhase < tx2);
     if(m_mode=="Echo") {
-        m_bTxTime = (t2p >= tx1) and (t2p < (tx2+m_config.txDelay())) and m_bEchoTxOK;
+        m_bTxTime = (txTwoPeriodPhase >= tx1) and (txTwoPeriodPhase < (tx2+m_config.txDelay())) and m_bEchoTxOK;
     }
     if(m_mode=="FT8" and ui->tx5->currentText().contains("/B ")) {
       //FT8 beacon transmission from Tx5 only at top of a UTC minute
-      double t4p=fmod(tsec,4*m_TRperiod);
+      double t4p=0.001 * TxTiming::phase (actualMs, 4 * periodMs, txAdvanceMs);
       if(t4p >= 30.0) m_bTxTime=false;
     }
   }
@@ -7729,7 +7735,7 @@ void MainWindow::guiUpdate()
 
 // Check for "txboth" (FT4 testing purposes only)
     QFile f(m_appDir + "/txboth");
-    if(f.exists() and fmod(tsec,m_TRperiod) < (0.5 + 105.0*576.0/12000.0)) m_bTxTime=true;
+    if(f.exists() and txPhase < (0.5 + 105.0*576.0/12000.0)) m_bTxTime=true;
 
 // Don't transmit another mode in the 30 m WSPR sub-band
     Frequency onAirFreq = m_freqNominal + ui->TxFreqSpinBox->value();
@@ -7790,7 +7796,7 @@ void MainWindow::guiUpdate()
       tx_watchdog (true);       // disable transmit
     }
 
-    double fTR=float((ms%int(1000.0*m_TRperiod)))/int(1000.0*m_TRperiod);
+    double fTR=txPhase/m_TRperiod;
 
     QString txMsg;
     if(m_ntx == 1) txMsg=ui->tx1->text();
@@ -7802,9 +7808,10 @@ void MainWindow::guiUpdate()
     int msgLength=txMsg.trimmed().length();
     if(msgLength==0 and !m_tune) on_stopTxButton_clicked();
 
-    if(g_iptt==0 and ((m_bTxTime and (fTR < 0.75) and (msgLength>0)) or m_tune)) {
+    if(g_iptt==0 and !ptt0Timer.isActive() and ((m_bTxTime and (fTR < 0.75) and (msgLength>0)) or m_tune)) {
       //### Allow late starts
       icw[0]=m_ncw;
+      m_txTiming.begin (txAdvanceMs, m_tune);
       g_iptt = 1;
       setRig ();
       if(m_mode=="FT8") {
@@ -7860,7 +7867,7 @@ void MainWindow::guiUpdate()
   }
 
   if((m_mode=="WSPR" or m_mode=="FST4W") and
-     ((m_ntr==1 and m_rxDone) or (m_ntr==-1 and nseq>tx2))) {
+     ((m_ntr==1 and m_rxDone) or (m_ntr==-1 and int(txPhase)>tx2))) {
     if(m_monitoring) {
       m_rxDone=false;
     }
@@ -7869,7 +7876,7 @@ void MainWindow::guiUpdate()
       m_bTxTime=false;                        //Time to stop a WSPR or FST4W transmission
       m_btxok=false;
     }
-    else if (m_ntr != -1) {
+    else if (m_ntr != -1 && !ptt0Timer.isActive()) {
       WSPR_scheduling ();
       m_ntr=0;                                //This WSPR or FST4W Rx sequence is complete
     }
@@ -8217,7 +8224,7 @@ void MainWindow::guiUpdate()
   }
 
   if(!m_btxok && m_btxok0 && g_iptt==1) {
-    stopTx();
+    stopTx(!m_bTxTime && !m_tune);
     if ("1" == m_env.value ("WSJT_TX_BOTH", "0")) {
       m_txFirst = !m_txFirst;
       ui->txFirstCheckBox->setChecked (m_txFirst);
@@ -8561,8 +8568,11 @@ void MainWindow::startTx2()
   }
 }
 
-void MainWindow::stopTx()
+void MainWindow::stopTx(bool scheduled)
 {
+  // Cancel a queued audio start, including a delayed CAT readiness reply.
+  ptt1Timer.stop();
+  m_tx_when_ready = false;
   if (m_tci_audio) Q_EMIT m_config.transceiver_modulator_stop();
   else Q_EMIT endTransmitMessage ();
   m_btxok = false;
@@ -8573,9 +8583,9 @@ void MainWindow::stopTx()
     tx_status_label.setText("");
   }
   if (m_tci_audio) {
-    ptt0Timer.start(0);
+    ptt0Timer.start(m_txTiming.releaseDelayMs (0, scheduled));
   } else {
-    ptt0Timer.start(200);                //end-of-transmission sequencer delay
+    ptt0Timer.start(m_txTiming.releaseDelayMs (200, scheduled)); // drain network audio before releasing PTT
     monitor (true);
     statusUpdate ();
   }
@@ -8583,6 +8593,7 @@ void MainWindow::stopTx()
 
 void MainWindow::stopTx2()
 {
+  m_txTiming.released();
   if (m_tci_audio) {
       Q_EMIT m_config.transceiver_ptt (false);      //Lower PTT
       monitor (true);
@@ -12294,6 +12305,8 @@ void MainWindow::on_stopTxButton_clicked()                    // Stop Tx
   if (m_tune) stop_tuning ();
   if (m_auto and !m_tuneup) auto_tx_mode (false);
   m_btxok=false;
+  // Stop/Halt must also work during the extra network-audio drain interval.
+  if (g_iptt || ptt0Timer.isActive() || m_tx_when_ready) stopTx(false);
   m_bCallingCQ = false;
   m_bAutoReply = false;         // ready for next
   m_maxPoints=-1;
@@ -12615,6 +12628,7 @@ void MainWindow::rigFailure (QString const& reason)
 
 void MainWindow::transmit (double snr)
 {
+  int const txAdvanceMs = m_tune ? 0 : m_txTiming.advanceMs();
   double toneSpacing=0.0;
   if (m_mode == "JT65") {
     if(m_nSubMode==0) toneSpacing=11025.0/4096.0;
@@ -12623,12 +12637,12 @@ void MainWindow::transmit (double snr)
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_JT65_SYMBOLS,
              4096.0*12000.0/11025.0, ui->TxFreqSpinBox->value () - m_XIT,
-             toneSpacing,true,false,snr,m_TRperiod);
+             toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_JT65_SYMBOLS,
              4096.0*12000.0/11025.0, ui->TxFreqSpinBox->value () - m_XIT,
              toneSpacing, m_soundOutput, m_config.audio_output_channel (),
-             true, false, snr, m_TRperiod);
+             true, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12648,23 +12662,23 @@ void MainWindow::transmit (double snr)
       if (m_tci_audio) {
         Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_SUPERFOX_SYMBOLS,
             1024.0,ui->TxFreqSpinBox->value()-m_XIT,
-            toneSpacing,true,false,snr,m_TRperiod);
+            toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
       } else {
         Q_EMIT sendMessage (m_mode, NUM_SUPERFOX_SYMBOLS,
             1024.0, ui->TxFreqSpinBox->value () - m_XIT,
             toneSpacing, m_soundOutput, m_config.audio_output_channel (),
-            true, false, snr, m_TRperiod);
+            true, false, snr, m_TRperiod, txAdvanceMs);
       }
     } else {
         if (m_tci_audio) {
           Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_FT8_SYMBOLS,
               1920.0,ui->TxFreqSpinBox->value()-m_XIT,
-              toneSpacing,true,false,snr,m_TRperiod);
+              toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
         } else {
           Q_EMIT sendMessage (m_mode, NUM_FT8_SYMBOLS,
               1920.0, ui->TxFreqSpinBox->value () - m_XIT,
               toneSpacing, m_soundOutput, m_config.audio_output_channel (),
-              true, false, snr, m_TRperiod);
+              true, false, snr, m_TRperiod, txAdvanceMs);
         }
     }
   }
@@ -12675,12 +12689,12 @@ void MainWindow::transmit (double snr)
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_FT4_SYMBOLS,
              576.0,ui->TxFreqSpinBox->value()-m_XIT,
-             toneSpacing,true,false,snr,m_TRperiod);
+             toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_FT4_SYMBOLS,
              576.0, ui->TxFreqSpinBox->value() - m_XIT,
              toneSpacing, m_soundOutput, m_config.audio_output_channel(),
-             true, false, snr, m_TRperiod);
+             true, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12703,11 +12717,11 @@ void MainWindow::transmit (double snr)
     if(!m_tune) f0 += 1.5*dfreq;
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_FST4_SYMBOLS,double(nsps),f0,toneSpacing,
-             true,false,snr,m_TRperiod);
+             true,false,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_FST4_SYMBOLS,double(nsps),f0,toneSpacing,
                           m_soundOutput,m_config.audio_output_channel(),
-                          true, false, snr, m_TRperiod);
+                          true, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12723,12 +12737,12 @@ void MainWindow::transmit (double snr)
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_Q65_SYMBOLS,
              double(nsps),ui->TxFreqSpinBox->value()-m_XIT,
-             toneSpacing,true,false,snr,m_TRperiod);
+             toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_Q65_SYMBOLS,
              double(nsps), ui->TxFreqSpinBox->value () - m_XIT,
              toneSpacing, m_soundOutput, m_config.audio_output_channel (),
-             true, false, snr, m_TRperiod);
+             true, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12748,12 +12762,12 @@ void MainWindow::transmit (double snr)
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_JT9_SYMBOLS,sps,
              ui->TxFreqSpinBox->value()-m_XIT,
-             m_toneSpacing,true,fastmode,snr,m_TRperiod);
+             m_toneSpacing,true,fastmode,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_JT9_SYMBOLS, sps,
                           ui->TxFreqSpinBox->value() - m_XIT, m_toneSpacing,
                           m_soundOutput, m_config.audio_output_channel (),
-                          true, fastmode, snr, m_TRperiod);
+                          true, fastmode, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12773,11 +12787,11 @@ void MainWindow::transmit (double snr)
     if(itone[40] < 0) nsym=40;
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, nsym,double(m_nsps),f0, m_toneSpacing,
-             true,true,snr,m_TRperiod);
+             true,true,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, nsym, double(m_nsps), f0, m_toneSpacing,
                           m_soundOutput, m_config.audio_output_channel (),
-                          true, true, snr, m_TRperiod);
+                          true, true, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12792,12 +12806,12 @@ void MainWindow::transmit (double snr)
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_JT4_SYMBOLS,
              2520.0*12000.0/11025.0,ui->TxFreqSpinBox->value()-m_XIT,
-             toneSpacing,true,false,snr,m_TRperiod);
+             toneSpacing,true,false,snr,m_TRperiod, txAdvanceMs);
      } else {
       Q_EMIT sendMessage (m_mode, NUM_JT4_SYMBOLS,
              2520.0*12000.0/11025.0, ui->TxFreqSpinBox->value () - m_XIT,
              toneSpacing, m_soundOutput, m_config.audio_output_channel (),
-             true, false, snr, m_TRperiod);
+             true, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12809,13 +12823,13 @@ void MainWindow::transmit (double snr)
       Q_EMIT m_config.transceiver_modulator_start(m_mode, NUM_WSPR_SYMBOLS,8192.0,
              ui->TxFreqSpinBox->value() - 1.5 * 12000 / 8192,
              m_toneSpacing*nToneSpacing,true,false,snr,
-             m_TRperiod);
+             m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode, NUM_WSPR_SYMBOLS, 8192.0,
                           ui->TxFreqSpinBox->value() - 1.5 * 12000 / 8192,
                           m_toneSpacing*nToneSpacing, m_soundOutput,
                           m_config.audio_output_channel(),true, false, snr,
-                          m_TRperiod);
+                          m_TRperiod, txAdvanceMs);
     }
   }
 
@@ -12857,10 +12871,10 @@ void MainWindow::transmit (double snr)
     m_msEchoTxStart=QDateTime::currentMSecsSinceEpoch();
     if (m_tci_audio) {
       Q_EMIT m_config.transceiver_modulator_start(m_mode,numEchoSymbols,framesPerSymbol,freq,toneSpacing,
-             false,false,snr,m_TRperiod);
+             false,false,snr,m_TRperiod, txAdvanceMs);
     } else {
       Q_EMIT sendMessage (m_mode,numEchoSymbols,framesPerSymbol,freq,toneSpacing,m_soundOutput,
-                          m_config.audio_output_channel(), false, false, snr, m_TRperiod);
+                          m_config.audio_output_channel(), false, false, snr, m_TRperiod, txAdvanceMs);
     }
   }
 

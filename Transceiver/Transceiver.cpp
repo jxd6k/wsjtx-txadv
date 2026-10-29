@@ -87,6 +87,7 @@ bool operator != (Transceiver::TransceiverState const& lhs, Transceiver::Transce
     || lhs.synchronize_ != rhs.synchronize_
     || lhs.dbsnr_ != rhs.dbsnr_
     || lhs.trperiod_ != rhs.trperiod_
+    || lhs.tx_advance_ms_ != rhs.tx_advance_ms_
     || lhs.spread_ != rhs.spread_
     || lhs.nsym_ != rhs.nsym_
     || lhs.volume_ != rhs.volume_

@@ -10,6 +10,7 @@
 //#include "widgets/mainwindow.h" // TODO: G4WJS - break this dependency //w3sz tci
 #include "Audio/soundout.h"
 #include "commons.h"
+#include "TxTiming.hpp"
 
 #include "moc_Modulator.cpp"
 
@@ -46,15 +47,20 @@ Modulator::Modulator (unsigned frameRate, double periodLengthInSeconds,
 {
 }
 
+qint64 Modulator::currentTimeMs () const
+{
+  return QDateTime::currentMSecsSinceEpoch();
+}
+
 void Modulator::start (QString mode, unsigned symbolsLength, double framesPerSymbol,
                        double frequency, double toneSpacing,
                        SoundOutput * stream, Channel channel,
-                       bool synchronize, bool fastMode, double dBSNR, double TRperiod)
+                       bool synchronize, bool fastMode, double dBSNR, double TRperiod, int txAdvanceMs)
 {
   // qDebug () << "mode:" << mode << "symbolsLength:" << symbolsLength << "framesPerSymbol:" << framesPerSymbol << "frequency:" << frequency << "toneSpacing:" << toneSpacing << "channel:" << channel << "synchronize:" << synchronize << "fastMode:" << fastMode << "dBSNR:" << dBSNR << "TRperiod:" << TRperiod;
   Q_ASSERT (stream);
 // Time according to this computer which becomes our base time
-  qint64 ms0 = QDateTime::currentMSecsSinceEpoch() % 86400000;
+  qint64 ms0 = TxTiming::time (currentTimeMs(), m_tuning ? 0 : txAdvanceMs) % 86400000;
   unsigned mstr = ms0 % int(1000.0*m_period); // ms into the nominal Tx start time
 
   if(m_state != Idle) stop();
@@ -89,18 +95,9 @@ void Modulator::start (QString mode, unsigned symbolsLength, double framesPerSym
   m_ic=0;
   if (!m_tuning && !m_bFastMode)
     {
-      // calculate number of silent frames to send, so that audio will
-      // start at the nominal time "delay_ms" into the Tx sequence.
-      if (synchronize)
-        {
-          if(delay_ms > mstr) m_silentFrames = (delay_ms - mstr) * m_frameRate / 1000;
-        }
- 
-      // adjust for late starts
-      if(!m_silentFrames && mstr >= delay_ms)
-        {
-          m_ic = (mstr - delay_ms) * m_frameRate / 1000;
-        }
+      auto const alignment = TxTiming::alignment (mstr, delay_ms, m_frameRate, synchronize);
+      m_silentFrames = alignment.silentFrames;
+      m_ic = alignment.skippedFrames;
     }
   if(mode=="Echo") m_ic=0;
 

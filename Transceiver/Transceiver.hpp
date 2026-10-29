@@ -99,6 +99,7 @@ public:
       ,	synchronize_ {true}
       ,	dbsnr_ {99.}
       ,	trperiod_ {60.0}
+      , tx_advance_ms_ {0}
       ,	spread_ {0.0}
       ,	nsym_ {79}
       , volume_ {0}
@@ -130,6 +131,7 @@ public:
     bool synchronize () const {return synchronize_;}
     double dbsnr () const {return dbsnr_;}
     double trperiod () const {return trperiod_;}
+    int tx_advance_ms () const {return tx_advance_ms_;}
     double spread () const {return spread_;}
     int nsym () const {return nsym_;}
     qreal volume () const {return volume_;}
@@ -159,6 +161,7 @@ public:
     void synchronize (bool synchronize) {synchronize_ = synchronize;}
     void dbsnr (double dbsnr) {dbsnr_ = dbsnr;}
     void trperiod (double trperiod) {trperiod_ = trperiod;}
+    void tx_advance_ms (int advance) {tx_advance_ms_ = advance;}
     void spread (double spread) {spread_ = spread;}
     void nsym (int nsym) {nsym_ = nsym;}
     void volume (qreal volume) {volume_ = volume;}
@@ -189,6 +192,7 @@ public:
     bool synchronize_;
     double dbsnr_;
     double trperiod_;
+    int tx_advance_ms_;
     double spread_;
     int nsym_;
     qreal volume_;

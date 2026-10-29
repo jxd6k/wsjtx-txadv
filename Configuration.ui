@@ -3358,7 +3358,21 @@ Right click for insert and delete options.</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="0" colspan="2">
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelTxAdvance">
+            <property name="text"><string>TX advance:</string></property>
+            <property name="buddy"><cstring>sbTxAdvance</cstring></property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSpinBox" name="sbTxAdvance">
+            <property name="toolTip"><string>Send scheduled Tx audio earlier to compensate for network audio latency. Positive values advance transmission; receive timing is unchanged. Applies to the next transmission. Tune is unaffected.</string></property>
+            <property name="suffix"><string> ms</string></property>
+            <property name="maximum"><number>2000</number></property>
+            <property name="singleStep"><number>50</number></property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
            <widget class="QGroupBox" name="groupBox_10">
             <property name="minimumSize">
              <size>
@@ -3399,7 +3413,7 @@ Right click for insert and delete options.</string>
             </layout>
            </widget>
           </item>
-          <item row="4" column="0" colspan="2">
+          <item row="5" column="0" colspan="2">
            <widget class="QGroupBox" name="groupBox_7">
             <property name="minimumSize">
              <size>
@@ -5037,6 +5051,7 @@ Right click for insert and delete options.</string>
   <tabstop>sbDegrade</tabstop>
   <tabstop>sbBandwidth</tabstop>
   <tabstop>sbTxDelay</tabstop>
+  <tabstop>sbTxAdvance</tabstop>
   <tabstop>cbx2ToneSpacing</tabstop>
   <tabstop>cbx4ToneSpacing</tabstop>
   <tabstop>rbLowSidelobes</tabstop>

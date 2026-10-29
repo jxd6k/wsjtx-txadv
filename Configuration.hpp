@@ -162,6 +162,7 @@ public:
   qint32 RxBandwidth() const;
   double degrade() const;
   double txDelay() const;
+  int txAdvanceMs() const;
   bool tci_audio() const;
   bool id_after_73 () const;
   bool tx_QSY_allowed () const;
@@ -407,7 +408,7 @@ public:
 
   // Set modulation start TCI audio
   //
-  Q_SLOT void transceiver_modulator_start (QString="FT8", unsigned = 79, double = 1920.0, double = 1500.0, double = -3.0, bool = true, bool=false, double = 99., double = 60.0);
+  Q_SLOT void transceiver_modulator_start (QString="FT8", unsigned = 79, double = 1920.0, double = 1500.0, double = -3.0, bool = true, bool=false, double = 99., double = 60.0, int = 0);
 
   // Set modulation start TCI audio
   //

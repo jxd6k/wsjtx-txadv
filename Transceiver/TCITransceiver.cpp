@@ -1,4 +1,5 @@
 #include "Transceiver/TCITransceiver.hpp"
+#include "TxTiming.hpp"
 
 #include <QRegularExpression>
 #include <QLocale>
@@ -1455,10 +1456,10 @@ void TCITransceiver::mysleep8 (int ms)
 // Modulator part
 
 void TCITransceiver::do_modulator_start (QString mode, unsigned symbolsLength, double framesPerSymbol,
-                                        double frequency, double toneSpacing, bool synchronize, bool fastMode, double dBSNR, double TRperiod)
+                                        double frequency, double toneSpacing, bool synchronize, bool fastMode, double dBSNR, double TRperiod, int txAdvanceMs)
 {
   // Time according to this computer which becomes our base time
-  qint64 ms0 = QDateTime::currentMSecsSinceEpoch() % 86400000;
+  qint64 ms0 = TxTiming::time (QDateTime::currentMSecsSinceEpoch(), m_tuning ? 0 : txAdvanceMs) % 86400000;
   qDebug() << "ModStart" << QDateTime::QDateTime::currentDateTimeUtc().toString("hh:mm:ss.sss");
   unsigned mstr = ms0 % int(1000.0*m_period); // ms into the nominal Tx start time
   if (m_state != Idle) {

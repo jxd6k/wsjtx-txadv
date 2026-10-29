@@ -38,13 +38,15 @@ public:
   Q_SLOT void start (QString mode, unsigned symbolsLength, double framesPerSymbol, double frequency,
                      double toneSpacing, SoundOutput *, Channel = Mono,
                      bool synchronize = true, bool fastMode = false,
-                     double dBSNR = 99., double TRperiod=60.0);
+                     double dBSNR = 99., double TRperiod=60.0, int txAdvanceMs=0);
   Q_SLOT void stop (bool quick = false);
   Q_SLOT void tune (bool newState = true);
   Q_SLOT void setFrequency (double newFrequency) {m_frequency = newFrequency;}
   Q_SIGNAL void stateChanged (ModulatorState) const;
 
 protected:
+  // Overridable clock permits deterministic rendering without an audio device.
+  virtual qint64 currentTimeMs () const;
   qint64 readData (char * data, qint64 maxSize) override;
   qint64 writeData (char const * /* data */, qint64 /* maxSize */) override
   {

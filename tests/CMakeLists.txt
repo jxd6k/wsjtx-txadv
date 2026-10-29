@@ -35,3 +35,11 @@ add_test (test_emulate_split_transceiver test_emulate_split_transceiver)
 add_executable (test_bwf_file test_bwf_file.cpp)
 target_link_libraries (test_bwf_file wsjt_qt wsjt_qtmm Qt5::Test Qt5::Multimedia)
 add_test (test_bwf_file test_bwf_file)
+
+add_executable (test_tx_timing
+  test_tx_timing.cpp
+  ${CMAKE_SOURCE_DIR}/Modulator/Modulator.cpp
+  ${CMAKE_SOURCE_DIR}/Audio/soundout.cpp)
+target_include_directories (test_tx_timing PRIVATE ${CMAKE_BINARY_DIR})
+target_link_libraries (test_tx_timing wsjt_fort wsjt_cxx wsjt_qt Qt5::Multimedia Qt5::Test)
+add_test (NAME test_tx_timing COMMAND test_tx_timing)

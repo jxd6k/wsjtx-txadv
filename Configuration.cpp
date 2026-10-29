@@ -502,7 +502,7 @@ public:
   void transceiver_tune (bool);
   void transceiver_period (double, bool = false);
   void transceiver_blocksize (qint32);
-  void transceiver_modulator_start (QString, unsigned, double, double, double, bool, bool, double, double);
+  void transceiver_modulator_start (QString, unsigned, double, double, double, bool, bool, double, double, int);
   void transceiver_modulator_stop (bool);
   void transceiver_spread (double);
   void transceiver_nsym (int);
@@ -874,6 +874,7 @@ private:
   bool check_SWR_;
   double degrade_;
   double txDelay_;
+  int txAdvanceMs_;
   bool tci_audio_;
   bool id_after_73_;
   bool tx_QSY_allowed_;
@@ -1035,6 +1036,7 @@ qint32 Configuration::volume() const {return m_->volume_;}
 qint32 Configuration::aggressive() const {return m_->aggressive_;}
 double Configuration::degrade() const {return m_->degrade_;}
 double Configuration::txDelay() const {return m_->txDelay_;}
+int Configuration::txAdvanceMs() const {return m_->txAdvanceMs_;}
 qint32 Configuration::RxBandwidth() const {return m_->RxBandwidth_;}
 bool Configuration::tci_audio () const {return m_->tci_audio_;}
 bool Configuration::id_after_73 () const {return m_->id_after_73_;}
@@ -1281,13 +1283,13 @@ void Configuration::transceiver_blocksize (qint32 blocksize)
 }
 
 void Configuration::transceiver_modulator_start(QString jtmode, unsigned symbolslength, double framespersymbol, double trfrequency,
-                     double tonespacing, bool synchronize, bool fastmode, double dbsnr, double trperiod)
+                     double tonespacing, bool synchronize, bool fastmode, double dbsnr, double trperiod, int txAdvanceMs)
 {
 #if WSJT_TRACE_CAT
   qDebug () << "Configuration::transceiver_modulator_start:" << symbolslength << m_->cached_rig_state_;
 #endif
 
-  m_->transceiver_modulator_start(jtmode, symbolslength,framespersymbol,trfrequency,tonespacing,synchronize,fastmode,dbsnr,trperiod);
+  m_->transceiver_modulator_start(jtmode, symbolslength,framespersymbol,trfrequency,tonespacing,synchronize,fastmode,dbsnr,trperiod,txAdvanceMs);
 }
 
 void Configuration::transceiver_modulator_stop (bool on)
@@ -2138,6 +2140,7 @@ void Configuration::impl::initialize_models ()
   ui_->sbNtrials->setValue (ntrials_);
   ui_->TCI_spin_box->setValue (volume_);
   ui_->sbTxDelay->setValue (txDelay_);
+  ui_->sbTxAdvance->setValue (txAdvanceMs_);
   ui_->sbAggressive->setValue (aggressive_);
   ui_->sbDegrade->setValue (degrade_);
   ui_->sbBandwidth->setValue (RxBandwidth_);
@@ -2484,6 +2487,7 @@ void Configuration::impl::read_settings ()
   ntrials_ = settings_->value ("nTrials", 6).toInt ();
   volume_ = settings_->value ("volume", 0).toInt ();
   txDelay_ = settings_->value ("TxDelay",0.2).toDouble();
+  txAdvanceMs_ = qBound (0, settings_->value ("TxAdvanceMs", 0).toInt(), 2000);
   aggressive_ = settings_->value ("Aggressive", 4).toInt ();
   RxBandwidth_ = settings_->value ("RxBandwidth", 2500).toInt ();
   save_directory_.setPath (settings_->value ("SaveDir", default_save_directory_.absolutePath ()).toString ());
@@ -2810,6 +2814,7 @@ void Configuration::impl::write_settings ()
   settings_->setValue ("nTrials", ntrials_);
   settings_->setValue ("volume", volume_);
   settings_->setValue ("TxDelay", txDelay_);
+  settings_->setValue ("TxAdvanceMs", txAdvanceMs_);
   settings_->setValue ("Aggressive", aggressive_);
   settings_->setValue ("RxBandwidth", RxBandwidth_);
   settings_->setValue ("TCIAudio", tci_audio_);
@@ -3449,6 +3454,7 @@ void Configuration::impl::accept ()
   ntrials_ = ui_->sbNtrials->value ();
   volume_ = ui_->TCI_spin_box->value ();
   txDelay_ = ui_->sbTxDelay->value ();
+  txAdvanceMs_ = ui_->sbTxAdvance->value ();
   aggressive_ = ui_->sbAggressive->value ();
   degrade_ = ui_->sbDegrade->value ();
   RxBandwidth_ = ui_->sbBandwidth->value ();
@@ -5304,7 +5310,7 @@ void Configuration::impl::transceiver_volume (double volume)
   }
 }
 
-void Configuration::impl::transceiver_modulator_start (QString jtmode, unsigned symbolslength, double framespersymbol, double frequency, double tonespacing, bool synchronize, bool fastmode, double dbsnr, double trperiod)
+void Configuration::impl::transceiver_modulator_start (QString jtmode, unsigned symbolslength, double framespersymbol, double frequency, double tonespacing, bool synchronize, bool fastmode, double dbsnr, double trperiod, int txAdvanceMs)
 {
   cached_rig_state_.online (true); // we want the rig online
   set_cached_mode ();
@@ -5318,6 +5324,7 @@ void Configuration::impl::transceiver_modulator_start (QString jtmode, unsigned 
     cached_rig_state_.synchronize (synchronize);
     cached_rig_state_.dbsnr (dbsnr);
     cached_rig_state_.trperiod (trperiod);
+    cached_rig_state_.tx_advance_ms (txAdvanceMs);
     cached_rig_state_.jtmode(jtmode);
     cached_rig_state_.fastmode(fastmode);
     //    printf("%s(%0.1f) Configuration #:%d modulator_start: symbolslength=%d framespersymbol=%0.1f frequency=%0.1f tonespacing=%0.1f synchronize= %d dbsnr=%0.1f trperiod=%0.1f\n",QDateTime::currentDateTimeUtc().toString("hh:mm:ss.zzz").toStdString().c_str(),transceiver_command_number_+1,symbolslength,framespersymbol,frequency,tonespacing,synchronize,dbsnr,trperiod);

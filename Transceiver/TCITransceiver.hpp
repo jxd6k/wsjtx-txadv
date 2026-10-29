@@ -169,7 +169,7 @@ protected:
   void do_txvolume (qreal txvolume) override;
 //bounch
   void do_modulator_start(QString jtmode, unsigned symbolsLength, double framesPerSymbol, double frequency,
-                     double toneSpacing, bool synchronize = true, bool fastmode=false, double dBSNR = 99., double TRperiod=60.0) override;
+                     double toneSpacing, bool synchronize = true, bool fastmode=false, double dBSNR = 99., double TRperiod=60.0, int txAdvanceMs = 0) override;
   void do_modulator_stop(bool quick = false) override;
   
   void rx2_enable (bool on);

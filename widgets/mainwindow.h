@@ -2,6 +2,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "TxTiming.hpp"
 #include <QMainWindow>
 #include <QByteArray>
 #include <QString>
@@ -348,7 +349,7 @@ private slots:
   void on_actionExport_Cabrillo_log_triggered();
   void startTx2();
   void startP1();
-  void stopTx();
+  void stopTx(bool scheduled = false);
   void stopTx2();
   void on_rptSpinBox_valueChanged(int n);
   void killFile();
@@ -486,7 +487,7 @@ private:
       double framesPerSymbol, double frequency, double toneSpacing,
       SoundOutput *, AudioDevice::Channel = AudioDevice::Mono,
       bool synchronize = true, bool fastMode = false, double dBSNR = 99.,
-                             int TRperiod=60) const;
+                             int TRperiod=60, int txAdvanceMs=0) const;
   Q_SIGNAL void outAttenuationChanged (qreal) const;
   Q_SIGNAL void toggleShorthand () const;
   Q_SIGNAL void reset_audio_input_stream (bool report_dropped_frames) const;
@@ -556,6 +557,7 @@ private:
   unsigned m_FFTSize;
   SoundInput * m_soundInput;
   Modulator * m_modulator;
+  TxTiming::Transmission m_txTiming;
   SoundOutput * m_soundOutput;
   int m_rx_audio_buffer_frames;
   int m_tx_audio_buffer_frames;
