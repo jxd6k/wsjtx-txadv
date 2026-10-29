@@ -45,29 +45,29 @@ jobs:
 
       - uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           cache: true
           install: >-
             git make tar
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-gcc-fortran
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-qt5-base
-            mingw-w64-x86_64-qt5-multimedia
-            mingw-w64-x86_64-qt5-serialport
-            mingw-w64-x86_64-qt5-svg
-            mingw-w64-x86_64-qt5-tools
-            mingw-w64-x86_64-qt5-websockets
-            mingw-w64-x86_64-qt5-activeqt
-            mingw-w64-x86_64-fftw
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-libusb
-            mingw-w64-x86_64-portaudio
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-nsis
-            mingw-w64-x86_64-osslsigncode
-            mingw-w64-x86_64-ruby
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gcc-fortran
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-qt5-base
+            mingw-w64-ucrt-x86_64-qt5-multimedia
+            mingw-w64-ucrt-x86_64-qt5-serialport
+            mingw-w64-ucrt-x86_64-qt5-svg
+            mingw-w64-ucrt-x86_64-qt5-tools
+            mingw-w64-ucrt-x86_64-qt5-websockets
+            mingw-w64-ucrt-x86_64-qt5-activeqt
+            mingw-w64-ucrt-x86_64-fftw
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-libusb
+            mingw-w64-ucrt-x86_64-portaudio
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-osslsigncode
+            mingw-w64-ucrt-x86_64-ruby
             autoconf automake libtool
 
       # asciidoctor is a Ruby gem (no native MSYS2 package) — needed by
@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: pfunit-prefix
-          key: pfunit-windows-v4.9.0-${{ hashFiles('.github/workflows/build-windows.yml') }}
+          key: pfunit-windows-ucrt64-v4.9.0-${{ hashFiles('.github/workflows/build-windows.yml') }}
 
       - name: Build pFUnit
         if: steps.pfunit-cache.outputs.cache-hit != 'true'
@@ -122,7 +122,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: hamlib-prefix
-          key: hamlib-windows-${{ inputs.hamlib_branch }}-${{ hashFiles('.github/workflows/build-windows.yml') }}
+          key: hamlib-windows-ucrt64-${{ inputs.hamlib_branch }}-${{ hashFiles('.github/workflows/build-windows.yml') }}
 
       - name: Build Hamlib
         if: steps.hamlib-cache.outputs.cache-hit != 'true'
@@ -161,7 +161,7 @@ jobs:
 
       - name: Fix dumpcpp name (MSYS2 ships dumpcpp-qt5, CMake expects dumpcpp)
         run: |
-          ln -sf /mingw64/bin/dumpcpp-qt5.exe /mingw64/bin/dumpcpp.exe
+          ln -sf "${MINGW_PREFIX}/bin/dumpcpp-qt5.exe" "${MINGW_PREFIX}/bin/dumpcpp.exe"
 
       - name: Configure
         run: |
