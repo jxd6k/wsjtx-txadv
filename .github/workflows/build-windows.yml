@@ -76,12 +76,16 @@ jobs:
       - name: Install asciidoctor (Ruby gem)
         run: gem install asciidoctor --no-document
 
+      - name: Identify Fortran toolchain for dependency caches
+        id: toolchain
+        run: echo "fortran-version=$(gfortran -dumpfullversion)" >> "$GITHUB_OUTPUT"
+
       - name: Cache pFUnit
         id: pfunit-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: pfunit-prefix
-          key: pfunit-windows-ucrt64-v4.9.0-${{ hashFiles('.github/workflows/build-windows.yml') }}
+          key: pfunit-windows-ucrt64-v4.9.0-${{ steps.toolchain.outputs.fortran-version }}-v1
 
       - name: Build pFUnit
         if: steps.pfunit-cache.outputs.cache-hit != 'true'
@@ -97,6 +101,13 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${WORKSPACE}/pfunit-prefix"
           cmake --build pfunit-build -j$(nproc)
           cmake --install pfunit-build
+
+      - name: Save pFUnit cache
+        if: steps.pfunit-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: pfunit-prefix
+          key: ${{ steps.pfunit-cache.outputs.cache-primary-key }}
 
       - name: Locate pFUnit config
         id: pfunit
@@ -119,10 +130,10 @@ jobs:
 
       - name: Cache Hamlib
         id: hamlib-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: hamlib-prefix
-          key: hamlib-windows-ucrt64-${{ inputs.hamlib_branch }}-${{ hashFiles('.github/workflows/build-windows.yml') }}
+          key: hamlib-windows-ucrt64-${{ inputs.hamlib_branch }}-${{ steps.toolchain.outputs.fortran-version }}-assert-header-v1
 
       - name: Build Hamlib
         if: steps.hamlib-cache.outputs.cache-hit != 'true'
@@ -133,6 +144,9 @@ jobs:
           git clone --depth 1 --branch "${{ inputs.hamlib_branch }}" \
             https://github.com/Hamlib/Hamlib.git hamlib-src
           cd hamlib-src
+          # Hamlib 4.7.1's Windows precise-time code omits assert.h.
+          # Modern GCC rejects its implicit assert() declaration.
+          sed -i '/#include <windows.h>/i #include <assert.h>' lib/precise_time.c
           ./bootstrap
           ./configure \
             --prefix="${WORKSPACE}/hamlib-prefix" \
@@ -143,6 +157,13 @@ jobs:
             LDFLAGS="-Wl,--gc-sections"
           make -j$(nproc)
           make install-strip
+
+      - name: Save Hamlib cache
+        if: steps.hamlib-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: hamlib-prefix
+          key: ${{ steps.hamlib-cache.outputs.cache-primary-key }}
 
       - name: Install OmniRig
         shell: pwsh
